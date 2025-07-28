@@ -3,155 +3,161 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ứng Dụng Lọc Công Nhân Viên</title>
+    <title>Ứng Dụng Lọc Công</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        body {
+            background-color: #f0f2f5;
+        }
+    </style>
 </head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+<body class="flex justify-center items-center min-h-screen">
     <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-2xl">
         <h1 class="text-2xl font-bold text-center text-gray-800 mb-6">ỨNG DỤNG LỌC CÔNG NHÂN VIÊN</h1>
 
         <!-- Employee File Input -->
-        <div class="flex items-center justify-between mb-4">
-            <label class="text-sm font-medium text-gray-700">File Nhân Viên:</label>
-            <input type="file" id="employeeFile" accept=".xlsx,.xls" class="ml-2 text-sm text-gray-600">
+        <div class="mb-4 flex items-center justify-between">
+            <label class="text-gray-700 font-medium">File Nhân Viên:</label>
+            <div class="flex items-center space-x-2">
+                <span id="empFileName" class="text-gray-500">Chưa chọn file</span>
+                <label class="bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded cursor-pointer">
+                    Chọn File
+                    <input type="file" id="employeeFile" accept=".xlsx,.xls" class="hidden" onchange="updateFileName('employeeFile', 'empFileName')">
+                </label>
+            </div>
         </div>
-        <p id="employeeFileName" class="text-sm text-gray-500 ml-4">Chưa chọn file</p>
 
         <!-- Attendance File Input -->
-        <div class="flex items-center justify-between mb-4">
-            <label class="text-sm font-medium text-gray-700">File Công:</label>
-            <input type="file" id="attendanceFile" accept=".xlsx,.xls" class="ml-2 text-sm text-gray-600">
+        <div class="mb-4 flex items-center justify-between">
+            <label class="text-gray-700 font-medium">File Công:</label>
+            <div class="flex items-center space-x-2">
+                <span id="attFileName" class="text-gray-500">Chưa chọn file</span>
+                <label class="bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded cursor-pointer">
+                    Chọn File
+                    <input type="file" id="attendanceFile" accept=".xlsx,.xls" class="hidden" onchange="updateFileName('attendanceFile', 'attFileName')">
+                </label>
+            </div>
         </div>
-        <p id="attendanceFileName" class="text-sm text-gray-500 ml-4">Chưa chọn file</p>
+
+        <!-- Output File Name Input -->
+        <div class="mb-4">
+            <label class="text-gray-700 font-medium">Tên file xuất (không cần .xlsx):</label>
+            <input type="text" id="outputFileName" placeholder="Tên file..." class="mt-1 w-full border border-gray-300 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+        </div>
 
         <!-- Progress Bar -->
-        <div class="w-full bg-gray-200 rounded-full h-2.5 mb-6 hidden" id="progressBar">
-            <div class="bg-blue-600 h-2.5 rounded-full" id="progressInner" style="width: 0%"></div>
+        <div class="mb-6">
+            <div id="progressBar" class="w-full bg-gray-200 rounded-full h-2.5 hidden">
+                <div id="progressFill" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+            </div>
         </div>
 
         <!-- Process Button -->
-        <button id="processButton" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg">
+        <button id="processButton" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg" onclick="processFiles()">
             Lọc và Xuất File
         </button>
     </div>
 
     <script>
-        // Lấy các phần tử DOM
-        const employeeFileInput = document.getElementById('employeeFile');
-        const attendanceFileInput = document.getElementById('attendanceFile');
-        const employeeFileName = document.getElementById('employeeFileName');
-        const attendanceFileName = document.getElementById('attendanceFileName');
-        const processButton = document.getElementById('processButton');
-        const progressBar = document.getElementById('progressBar');
-        const progressInner = document.getElementById('progressInner');
+        let employeeFile = null;
+        let attendanceFile = null;
 
-        // Biến lưu trữ dữ liệu
-        let employeeData = null;
-        let attendanceData = null;
-
-        // Xử lý chọn file nhân viên
-        employeeFileInput.addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                employeeFileName.textContent = file.name;
-                readExcelFile(file, (data) => {
-                    employeeData = data;
-                });
+        function updateFileName(inputId, displayId) {
+            const input = document.getElementById(inputId);
+            const display = document.getElementById(displayId);
+            if (input.files.length > 0) {
+                display.textContent = input.files[0].name;
+                if (inputId === 'employeeFile') employeeFile = input.files[0];
+                if (inputId === 'attendanceFile') attendanceFile = input.files[0];
             }
-        });
-
-        // Xử lý chọn file chấm công
-        attendanceFileInput.addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                attendanceFileName.textContent = file.name;
-                readExcelFile(file, (data) => {
-                    attendanceData = data;
-                });
-            }
-        });
-
-        // Hàm đọc file Excel
-        function readExcelFile(file, callback) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array', cellDates: true });
-                const sheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[sheetName];
-                const jsonData = XLSX.utils.sheet_to_json(worksheet);
-                callback(jsonData);
-            };
-            reader.readAsArrayBuffer(file);
         }
 
-        // Hàm làm sạch tên file/sheet
-        function sanitizeFilename(filename, index = 0) {
-            const name = filename.replace(/[<>:"/\\|?*]/g, '_').substring(0, 29);
-            return index ? `${name}_${index}` : name;
+        function showAlert(type, message) {
+            alert(message);
         }
 
-        // Xử lý khi nhấn nút "Lọc và Xuất File"
-        processButton.addEventListener('click', () => {
-            if (!employeeData || !attendanceData) {
-                alert('Vui lòng chọn cả hai file!');
+        function sanitizeFilename(filename) {
+            return String(filename).replace(/[<>:"/\\|?*]/g, '_').substring(0, 31);
+        }
+
+        async function processFiles() {
+            if (!employeeFile || !attendanceFile) {
+                showAlert('error', 'Vui lòng chọn cả hai file!');
                 return;
             }
 
-            if (!attendanceData[0].hasOwnProperty('立讯工号')) {
-                alert("File chấm công thiếu cột '立讯工号'!");
-                return;
-            }
-            if (!employeeData[0].hasOwnProperty('学校') || !employeeData[0].hasOwnProperty('工号')) {
-                alert("File nhân viên thiếu cột '学校' hoặc '工号'!");
-                return;
-            }
+            const processButton = document.getElementById('processButton');
+            const progressBar = document.getElementById('progressBar');
+            const progressFill = document.getElementById('progressFill');
+            const outputFileNameInput = document.getElementById('outputFileName');
 
-            // Hiển thị thanh tiến trình
-            progressBar.classList.remove('hidden');
             processButton.disabled = true;
+            progressBar.classList.remove('hidden');
+            progressFill.style.width = '10%';
 
-            // Xử lý dữ liệu
-            setTimeout(() => {
-                const workbook = XLSX.utils.book_new();
-                const schools = [...new Set(employeeData.map(item => item['学校']))];
+            try {
+                const empArrayBuffer = await employeeFile.arrayBuffer();
+                const attArrayBuffer = await attendanceFile.arrayBuffer();
+                const empWorkbook = XLSX.read(new Uint8Array(empArrayBuffer), { type: 'array' });
+                const attWorkbook = XLSX.read(new Uint8Array(attArrayBuffer), { type: 'array' });
+                const empSheet = empWorkbook.Sheets[empWorkbook.SheetNames[0]];
+                const attSheet = attWorkbook.Sheets[attWorkbook.SheetNames[0]];
+                const empData = XLSX.utils.sheet_to_json(empSheet);
+                const attData = XLSX.utils.sheet_to_json(attSheet);
+
+                if (!attData[0].hasOwnProperty('立讯工号')) throw new Error("File chấm công thiếu cột '立讯工号'!");
+                if (!empData[0].hasOwnProperty('学校') || !empData[0].hasOwnProperty('工号')) {
+                    throw new Error("File nhân viên thiếu cột '学校' hoặc '工号'!");
+                }
+
+                const newWorkbook = XLSX.utils.book_new();
+                const schools = [...new Set(empData.map(row => row['学校']))];
+                progressFill.style.width = '30%';
 
                 if (schools.length === 0) {
-                    alert('Không tìm thấy dữ liệu trường học trong file nhân viên!');
-                    progressBar.classList.add('hidden');
-                    processButton.disabled = false;
+                    showAlert('warning', 'Không tìm thấy dữ liệu trường học!');
                     return;
                 }
 
-                schools.forEach((school, index) => {
-                    const empSubset = employeeData
-                        .filter(emp => emp['学校'] === school)
-                        .map(emp => emp['工号']);
-                    if (empSubset.length === 0) return;
+                const availableColumns = Object.keys(attData[0]);
+                if (!availableColumns.includes('序号')) availableColumns.unshift('序号');
 
-                    const filteredData = attendanceData
-                        .filter(row => empSubset.includes(row['立讯工号']))
-                        .map((row, idx) => {
-                            if (row['上班卡'] == null && row['下班卡'] == null) {
-                                row.__rowStyle = { fill: { fgColor: { rgb: 'FFFF00' } } };
-                            }
-                            if (row['序号']) row['序号'] = idx + 1; // Cập nhật số thứ tự
-                            return row;
-                        });
+                for (let i = 0; i < schools.length; i++) {
+                    const school = schools[i];
+                    const empSubset = empData.filter(row => row['学校'] === school).map(row => row['工号']);
+                    if (empSubset.length === 0) continue;
 
-                    const ws = XLSX.utils.json_to_sheet(filteredData, { header: Object.keys(attendanceData[0]) });
-                    XLSX.utils.book_append_sheet(workbook, ws, sanitizeFilename(school, index));
+                    const filteredData = attData.filter(row => empSubset.includes(row['立讯工号']));
+                    const wsData = [
+                        availableColumns,
+                        ...filteredData.map((row, idx) => {
+                            return availableColumns.map(col => {
+                                if (col === '序号') return idx + 1;
+                                if (['入职日期', '考勤日期'].includes(col) && row[col]) {
+                                    try {
+                                        const date = new Date(row[col]);
+                                        return isNaN(date) ? row[col] : XLSX.SSF.format('yyyy-mm-dd', date);
+                                    } catch {
+                                        return row[col];
+                                    }
+                                }
+                                return row[col];
+                            });
+                        })
+                    ];
 
-                    // Áp dụng định dạng
+                    const ws = XLSX.utils.aoa_to_sheet(wsData);
                     const range = XLSX.utils.decode_range(ws['!ref']);
-                    for (let row = range.s.r; row <= range.e.r; row++) {
-                        for (let col = range.s.c; col <= range.e.c; col++) {
-                            const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
-                            if (!ws[cellAddress]) ws[cellAddress] = {};
-                            ws[cellAddress].s = {
-                                font: { name: 'Times New Roman', sz: 10 },
-                                alignment: { horizontal: 'center', vertical: 'center' },
+
+                    for (let R = range.s.r; R <= range.e.r; R++) {
+                        for (let C = range.s.c; C <= range.e.c; C++) {
+                            const addr = XLSX.utils.encode_cell({ r: R, c: C });
+                            if (!ws[addr]) ws[addr] = { t: 's', v: '' };
+                            ws[addr].s = {
+                                font: { name: 'Times New Roman', sz: 10, bold: R === 0 },
+                                alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
                                 border: {
                                     top: { style: 'thin' },
                                     bottom: { style: 'thin' },
@@ -159,52 +165,49 @@
                                     right: { style: 'thin' }
                                 }
                             };
-                            if (row === 0) ws[cellAddress].s.font.bold = true;
-                            if (filteredData[row - 1]?.__rowStyle) {
-                                ws[cellAddress].s.fill = filteredData[row - 1].__rowStyle.fill;
+
+                            const checkInIdx = availableColumns.indexOf('上班卡');
+                            const checkOutIdx = availableColumns.indexOf('下班卡');
+                            if (R > 0 && wsData[R][checkInIdx] === undefined && wsData[R][checkOutIdx] === undefined) {
+                                ws[addr].s.fill = { fgColor: { rgb: 'FFFF00' } };
                             }
                         }
                     }
-                    ws['!cols'] = Object.keys(attendanceData[0]).map(() => ({ wch: 15 }));
-                });
 
-                if (!workbook.SheetNames.length) {
-                    const ws = XLSX.utils.json_to_sheet(attendanceData, { header: Object.keys(attendanceData[0]) });
-                    XLSX.utils.book_append_sheet(workbook, ws, 'Data');
+                    ws['!cols'] = availableColumns.map(col => {
+                        const maxLen = Math.max(...wsData.map(row => String(row[availableColumns.indexOf(col)] || '').length));
+                        return { wch: Math.min(maxLen + 2, 50) };
+                    });
 
-                    const range = XLSX.utils.decode_range(ws['!ref']);
-                    for (let row = range.s.r; row <= range.e.r; row++) {
-                        for (let col = range.s.c; col <= range.e.c; col++) {
-                            const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
-                            if (!ws[cellAddress]) ws[cellAddress] = {};
-                            ws[cellAddress].s = {
-                                font: { name: 'Times New Roman', sz: 10 },
-                                alignment: { horizontal: 'center', vertical: 'center' },
-                                border: {
-                                    top: { style: 'thin' },
-                                    bottom: { style: 'thin' },
-                                    left: { style: 'thin' },
-                                    right: { style: 'thin' }
-                                }
-                            };
-                            if (row === 0) ws[cellAddress].s.font.bold = true;
-                            if (attendanceData[row - 1]?.['上班卡'] == null && attendanceData[row - 1]?.['下班卡'] == null) {
-                                ws[cellAddress].s.fill = { fgColor: { rgb: 'FFFF00' } };
-                            }
-                        }
-                    }
-                    ws['!cols'] = Object.keys(attendanceData[0]).map(() => ({ wch: 15 }));
+                    XLSX.utils.book_append_sheet(newWorkbook, ws, sanitizeFilename(school));
+                    progressFill.style.width = `${30 + (i + 1) * (60 / schools.length)}%`;
                 }
 
-                // Xuất file
-                XLSX.writeFile(workbook, `filtered_attendance.xlsx`);
+                if (!newWorkbook.SheetNames.length) {
+                    const wsData = [
+                        availableColumns,
+                        ...attData.map((row, idx) => availableColumns.map(col => col === '序号' ? idx + 1 : row[col]))
+                    ];
+                    const ws = XLSX.utils.aoa_to_sheet(wsData);
+                    XLSX.utils.book_append_sheet(newWorkbook, ws, 'Data');
+                }
 
-                // Ẩn thanh tiến trình và bật lại nút
+                const outputName = outputFileNameInput.value.trim() || employeeFile.name.split('.')[0];
+                const wbout = XLSX.write(newWorkbook, { bookType: 'xlsx', type: 'array' });
+                saveAs(new Blob([wbout], { type: 'application/octet-stream' }), `${outputName}.xlsx`);
+
+                progressFill.style.width = '100%';
+                setTimeout(() => {
+                    progressBar.classList.add('hidden');
+                    processButton.disabled = false;
+                    showAlert('success', `Đã lưu file: ${outputName}.xlsx`);
+                }, 500);
+            } catch (err) {
                 progressBar.classList.add('hidden');
                 processButton.disabled = false;
-                alert('Đã xuất file thành công!');
-            }, 100);
-        });
+                showAlert('error', `Lỗi: ${err.message}`);
+            }
+        }
     </script>
 </body>
 </html>
